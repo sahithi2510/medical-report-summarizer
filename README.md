@@ -16,6 +16,12 @@ No API keys. No rate limits. Fully offline-compatible.
 
 ---
 
+## 🚀 Try it Online
+
+🔗 [Launch on Streamlit Cloud]((https://medical-report-summarizer-dzegjgfwkab98gbp42trsp.streamlit.app/)
+
+---
+
 ## 📦 Installation
 
 ### 1. Clone the repository
