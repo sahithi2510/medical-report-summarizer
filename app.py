@@ -9,7 +9,7 @@ st.set_page_config(page_title="Medical Report Summarizer", layout="centered")
 st.title("📄 Medical Report Summarizer")
 st.markdown("Upload a PDF medical report to generate a simplified summary.")
 
-uploaded_file = st.file_uploader("Choose a file", type=["pdf", "jpg", "png"])
+uploaded_file = st.file_uploader("Choose a file", type=["pdf"])
 
 if uploaded_file is not None:
     with st.spinner("🔍 Extracting text..."):
