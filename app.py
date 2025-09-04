@@ -3,8 +3,7 @@ from modules.utils import (
     extract_text_from_file,
     highlight_medical_terms,
     explain_glossary_terms,
-    save_summary_as_pdf,
-    speak_summary
+    save_summary_as_pdf
 )
 
 st.set_page_config(page_title="Medical Report Summarizer", layout="wide")
@@ -39,8 +38,3 @@ if uploaded_file:
         pdf_path = save_summary_as_pdf(content)
         with open(pdf_path, "rb") as f:
             st.download_button("Download PDF", f, file_name="summary.pdf")
-
-    if st.button("🔊 Listen to Summary"):
-        st.info("Playing audio...")
-        speak_summary(content)
-
