@@ -1,6 +1,0 @@
-streamlit
-pdfplumber
-transformers
-torch
-gtts
-Pillow
