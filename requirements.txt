@@ -1,5 +1,5 @@
 streamlit==1.30.0
-google-cloud-vision==3.2.2
+google-cloud-vision   # no version pin
 
 PyPDF2
 pdf2image
