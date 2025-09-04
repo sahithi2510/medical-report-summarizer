@@ -1,20 +1,30 @@
-import os, pytesseract, re, json, zipfile, io
+import os
+import pytesseract
+import re
+import json
+import zipfile
+import io
+
 from pdf2image import convert_from_bytes
 from PIL import Image
-import PyPDF2, docx
+import PyPDF2
+import docx
 from odf.opendocument import load as load_odt
 from odf.text import P, H
-import pypandoc, pyttsx3
+import pypandoc
+import pyttsx3
 from fpdf import FPDF
 
-# Check if Tesseract is available
+# ----------------- Check Tesseract availability -----------------
 try:
-    pytesseract.get_tesseract_version()
+    TESSERACT_VERSION = pytesseract.get_tesseract_version()
+    print("Tesseract version detected:", TESSERACT_VERSION)
     TESSERACT_AVAILABLE = True
 except pytesseract.pytesseract.TesseractNotFoundError:
-    print("Warning: Tesseract not found. OCR will be disabled.")
+    print("Tesseract not found! OCR will be unavailable.")
     TESSERACT_AVAILABLE = False
 
+# ----------------- Text Extraction -----------------
 def extract_text_from_file(uploaded_file):
     """Extract text from different file formats (PDF, DOCX, ODT, RTF, TXT, images, ZIP)."""
     filename = uploaded_file.name.lower()
@@ -33,12 +43,11 @@ def extract_text_from_file(uploaded_file):
                 return text
         except Exception:
             pass
-        # Fallback OCR for scanned PDFs
+        # fallback OCR for scanned PDFs
         if TESSERACT_AVAILABLE:
             images = convert_from_bytes(uploaded_file.getvalue())
             return "\n".join([pytesseract.image_to_string(img) for img in images])
-        else:
-            return "OCR unavailable: Tesseract not installed."
+        return "OCR unavailable: Tesseract not installed."
 
     # DOCX
     if filename.endswith(".docx"):
@@ -57,10 +66,9 @@ def extract_text_from_file(uploaded_file):
     if file_type.startswith("image/") or filename.endswith((".png", ".jpg", ".jpeg")):
         if TESSERACT_AVAILABLE:
             return pytesseract.image_to_string(Image.open(uploaded_file))
-        else:
-            return "OCR unavailable: Tesseract not installed."
+        return "OCR unavailable: Tesseract not installed."
 
-    # RTF
+    # RTF (via Pandoc)
     if filename.endswith(".rtf"):
         raw = uploaded_file.read().decode("utf-8", errors="ignore")
         return pypandoc.convert_text(raw, 'plain', format='rtf')
@@ -80,18 +88,18 @@ def extract_text_from_file(uploaded_file):
 
     return "Unsupported file type."
 
+# ----------------- Highlight Medical Terms -----------------
 def highlight_medical_terms(text):
-    """Highlight all medical terms from the glossary in the summary."""
+    """Highlight medical terms based on glossary.json."""
     glossary_file = os.path.join(os.path.dirname(__file__), "glossary.json")
     with open(glossary_file, "r") as f:
         glossary = json.load(f)
-    
     for term in glossary.keys():
-        pattern = re.compile(fr"\b({re.escape(term)})\b", re.IGNORECASE)
+        pattern = re.compile(fr"\b({term})\b", re.IGNORECASE)
         text = pattern.sub(r"<mark>\1</mark>", text)
-    
     return text
 
+# ----------------- Glossary Explanations -----------------
 def explain_glossary_terms(summary):
     """Add simple glossary explanations for medical terms in the summary."""
     glossary_file = os.path.join(os.path.dirname(__file__), "glossary.json")
@@ -104,6 +112,7 @@ def explain_glossary_terms(summary):
     ]
     return "### 🧾 Glossary\n" + "\n".join(explanations) if explanations else ""
 
+# ----------------- Save Summary as PDF -----------------
 def save_summary_as_pdf(summary):
     """Save the summary as a PDF file and return the path."""
     pdf = FPDF()
@@ -115,6 +124,7 @@ def save_summary_as_pdf(summary):
     pdf.output(path)
     return path
 
+# ----------------- Text-to-Speech -----------------
 def speak_summary(text):
     """Read the summary aloud using text-to-speech."""
     engine = pyttsx3.init()
