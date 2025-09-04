@@ -20,13 +20,25 @@ from fpdf import FPDF
 OCR_SPACE_API_KEY = "YOUR_OCR_SPACE_API_KEY"  # Replace with your key
 OCR_SPACE_URL = "https://api.ocr.space/parse/image"
 
-def ocr_image_cloud(file_bytes):
-    """Perform OCR using OCR.space cloud API (bytes-safe)."""
-    # Ensure input is bytes
-    if isinstance(file_bytes, str):
-        file_bytes = file_bytes.encode("utf-8")
+def ocr_image_cloud(file_input):
+    """
+    Perform OCR using OCR.space cloud API.
+    Accepts:
+      - bytes
+      - file-like object (with .read())
+    """
+    if hasattr(file_input, "read"):  # file-like object
+        file_bytes = file_input.read()
+    elif isinstance(file_input, bytes):
+        file_bytes = file_input
+    else:
+        raise ValueError(
+            "ocr_image_cloud expects bytes or file-like object, got: " + str(type(file_input))
+        )
+
     files = {"file": ("file", file_bytes)}
     payload = {"apikey": OCR_SPACE_API_KEY, "language": "eng"}
+
     try:
         response = requests.post(OCR_SPACE_URL, files=files, data=payload)
         result = response.json()
@@ -55,6 +67,7 @@ def extract_text_from_file(uploaded_file):
                 return text
         except Exception:
             pass
+        # fallback: convert PDF pages to images and OCR via cloud
         try:
             images = convert_from_bytes(uploaded_file.getvalue())
             text_pages = []
@@ -62,7 +75,7 @@ def extract_text_from_file(uploaded_file):
                 with io.BytesIO() as buf:
                     img.save(buf, format="PNG")
                     buf.seek(0)
-                    text_pages.append(ocr_image_cloud(buf.getvalue()))
+                    text_pages.append(ocr_image_cloud(buf))
             return "\n".join(text_pages)
         except Exception:
             return "OCR failed for scanned PDF."
@@ -82,7 +95,7 @@ def extract_text_from_file(uploaded_file):
 
     # Images
     if file_type.startswith("image/") or filename.endswith((".png", ".jpg", ".jpeg")):
-        return ocr_image_cloud(uploaded_file.getvalue())
+        return ocr_image_cloud(uploaded_file)
 
     # RTF
     if filename.endswith(".rtf"):
@@ -146,3 +159,4 @@ def speak_summary(text):
     engine = pyttsx3.init()
     engine.say(text)
     engine.runAndWait()
+
