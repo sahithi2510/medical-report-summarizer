@@ -8,7 +8,7 @@ import io
 import json
 import re
 from fpdf import FPDF
-import pyttsx3
+
 
 # ---------------------------
 # Google Vision Setup
