@@ -21,8 +21,11 @@ OCR_SPACE_API_KEY = "YOUR_OCR_SPACE_API_KEY"  # Replace with your key
 OCR_SPACE_URL = "https://api.ocr.space/parse/image"
 
 def ocr_image_cloud(file_bytes):
-    """Perform OCR using OCR.space cloud API."""
-    files = {"file": file_bytes}
+    """Perform OCR using OCR.space cloud API (bytes-safe)."""
+    # Ensure input is bytes
+    if isinstance(file_bytes, str):
+        file_bytes = file_bytes.encode("utf-8")
+    files = {"file": ("file", file_bytes)}
     payload = {"apikey": OCR_SPACE_API_KEY, "language": "eng"}
     try:
         response = requests.post(OCR_SPACE_URL, files=files, data=payload)
@@ -58,6 +61,7 @@ def extract_text_from_file(uploaded_file):
             for img in images:
                 with io.BytesIO() as buf:
                     img.save(buf, format="PNG")
+                    buf.seek(0)
                     text_pages.append(ocr_image_cloud(buf.getvalue()))
             return "\n".join(text_pages)
         except Exception:
@@ -78,10 +82,7 @@ def extract_text_from_file(uploaded_file):
 
     # Images
     if file_type.startswith("image/") or filename.endswith((".png", ".jpg", ".jpeg")):
-        try:
-            return ocr_image_cloud(uploaded_file.getvalue())
-        except Exception:
-            return "OCR failed for image."
+        return ocr_image_cloud(uploaded_file.getvalue())
 
     # RTF
     if filename.endswith(".rtf"):
