@@ -7,7 +7,10 @@ st.title("🏥 Medical Report Summarizer")
 st.markdown("Upload medical reports (PDF, DOCX, TXT, images, ZIP) to extract and summarize key information.")
 
 # ----------------- File Upload -----------------
-uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx", "odt", "rtf", "txt", "png", "jpg", "jpeg", "zip"])
+uploaded_file = st.file_uploader(
+    "Choose a file", 
+    type=["pdf", "docx", "odt", "rtf", "txt", "png", "jpg", "jpeg", "zip"]
+)
 
 if uploaded_file:
     with st.spinner("Extracting text..."):
