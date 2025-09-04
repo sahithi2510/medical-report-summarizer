@@ -3,6 +3,7 @@ import re
 import json
 import zipfile
 import io
+import mimetypes
 import requests
 
 from pdf2image import convert_from_bytes
@@ -16,7 +17,7 @@ import pyttsx3
 from fpdf import FPDF
 
 # ----------------- Cloud OCR setup -----------------
-OCR_SPACE_API_KEY = "K84635153888957"  # Replace with your key
+OCR_SPACE_API_KEY = "YOUR_OCR_SPACE_API_KEY"  # Replace with your key
 OCR_SPACE_URL = "https://api.ocr.space/parse/image"
 
 def ocr_image_cloud(file_bytes):
@@ -34,16 +35,16 @@ def ocr_image_cloud(file_bytes):
 
 # ----------------- Text Extraction -----------------
 def extract_text_from_file(uploaded_file):
-    """Extract text from different file formats (PDF, DOCX, ODT, RTF, TXT, images, ZIP)."""
+    """Extract text from different file formats with robust type detection."""
     filename = uploaded_file.name.lower()
-    file_type = uploaded_file.type or ""
+    file_type = uploaded_file.type or mimetypes.guess_type(filename)[0] or ""
 
     # TXT
     if file_type.startswith("text/") or filename.endswith(".txt"):
         return uploaded_file.read().decode("utf-8", errors="ignore")
 
     # PDF
-    if filename.endswith(".pdf") or file_type == "application/pdf":
+    if filename.endswith(".pdf") or "pdf" in file_type:
         try:
             reader = PyPDF2.PdfReader(uploaded_file)
             text = "".join([page.extract_text() or "" for page in reader.pages])
@@ -51,7 +52,6 @@ def extract_text_from_file(uploaded_file):
                 return text
         except Exception:
             pass
-        # fallback: convert PDF pages to images and OCR via cloud
         try:
             images = convert_from_bytes(uploaded_file.getvalue())
             text_pages = []
@@ -64,7 +64,7 @@ def extract_text_from_file(uploaded_file):
             return "OCR failed for scanned PDF."
 
     # DOCX
-    if filename.endswith(".docx"):
+    if filename.endswith(".docx") or "wordprocessingml.document" in file_type:
         doc = docx.Document(uploaded_file)
         return "\n".join([para.text for para in doc.paragraphs])
 
@@ -83,7 +83,7 @@ def extract_text_from_file(uploaded_file):
         except Exception:
             return "OCR failed for image."
 
-    # RTF (via Pandoc)
+    # RTF
     if filename.endswith(".rtf"):
         raw = uploaded_file.read().decode("utf-8", errors="ignore")
         return pypandoc.convert_text(raw, 'plain', format='rtf')
@@ -101,7 +101,7 @@ def extract_text_from_file(uploaded_file):
         except Exception:
             return "Could not read ZIP file."
 
-    return "Unsupported file type."
+    return f"Unsupported or unrecognized file type: {filename}"
 
 # ----------------- Highlight Medical Terms -----------------
 def highlight_medical_terms(text):
