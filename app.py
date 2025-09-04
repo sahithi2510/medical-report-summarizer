@@ -1,6 +1,6 @@
 import streamlit as st
 from modules.utils import (
-    extract_text_from_file,
+    extract_from_file,
     highlight_medical_terms,
     explain_glossary_terms,
     save_summary_as_pdf
