@@ -1,3 +1,9 @@
+import pytesseract
+try:
+    print("Tesseract version:", pytesseract.get_tesseract_version())
+except pytesseract.pytesseract.TesseractNotFoundError:
+    print("Tesseract not found!")
+
 import streamlit as st
 from modules.summarizer import generate_summary
 from modules.utils import (
