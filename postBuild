@@ -1,7 +1,4 @@
-# Upgrade pip
-pip install --upgrade pip
-
-# Install Poppler for pdf2image
+#!/bin/bash
 apt-get update && apt-get install -y poppler-utils
 
 
