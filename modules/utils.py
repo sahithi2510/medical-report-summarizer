@@ -1,105 +1,133 @@
 import os
-import json
 import re
-import tempfile
+import io
+import json
+import zipfile
 from PIL import Image
 import pytesseract
+import docx
+from odf.opendocument import load as load_odt
+from odf.text import P, H
+from fpdf import FPDF
 import pyttsx3
-from PyPDF2 import PdfReader
-
-# ---------------------------
-# Load glossary terms
-# ---------------------------
-GLOSSARY_PATH = os.path.join(os.path.dirname(__file__), "glossary.json")
-with open(GLOSSARY_PATH, "r", encoding="utf-8") as file:
-    GLOSSARY = json.load(file)
 
 # ---------------------------
 # Check Tesseract availability
 # ---------------------------
-def is_tesseract_available():
+def check_tesseract():
     try:
         pytesseract.get_tesseract_version()
         return True
     except Exception:
         return False
 
-TESSERACT_AVAILABLE = is_tesseract_available()
+TESSERACT_AVAILABLE = check_tesseract()
 
 # ---------------------------
-# Text-to-Speech
-# ---------------------------
-def speak_text(text: str):
-    try:
-        engine = pyttsx3.init()
-        engine.say(text)
-        engine.runAndWait()
-    except Exception:
-        return "❌ TTS failed. Is pyttsx3 supported in this environment?"
-
-# ---------------------------
-# OCR: extract text from image
-# ---------------------------
-def extract_text_from_image(image):
-    if not TESSERACT_AVAILABLE:
-        return "❌ Tesseract OCR is not installed."
-    try:
-        return pytesseract.image_to_string(image)
-    except Exception as e:
-        return f"❌ OCR error: {str(e)}"
-
-# ---------------------------
-# OCR: extract text from PDF
-# ---------------------------
-def extract_text_from_pdf(pdf_file):
-    if not TESSERACT_AVAILABLE:
-        return "❌ Tesseract OCR is not installed."
-
-    text = ""
-    try:
-        with tempfile.TemporaryDirectory() as _:
-            reader = PdfReader(pdf_file)
-            for page in reader.pages:
-                try:
-                    text += page.extract_text() or ""
-                except Exception:
-                    continue
-    except Exception as e:
-        return f"❌ PDF reading error: {str(e)}"
-
-    return text.strip() if text else "❌ No text found in the PDF."
-
-# ---------------------------
-# General extractor
+# File extraction
 # ---------------------------
 def extract_text_from_file(uploaded_file):
-    try:
-        if uploaded_file.type.startswith("image/"):
-            image = Image.open(uploaded_file)
-            return extract_text_from_image(image)
-        elif uploaded_file.type == "application/pdf":
-            return extract_text_from_pdf(uploaded_file)
+    filename = uploaded_file.name.lower()
+    file_type = uploaded_file.type or ""
+
+    # TXT
+    if file_type.startswith("text/") or filename.endswith(".txt"):
+        return uploaded_file.read().decode("utf-8", errors="ignore")
+
+    # PDF
+    if filename.endswith(".pdf"):
+        try:
+            import PyPDF2
+            reader = PyPDF2.PdfReader(uploaded_file)
+            text = "".join([page.extract_text() or "" for page in reader.pages])
+            if text.strip():
+                return text
+        except Exception:
+            pass
+
+        if TESSERACT_AVAILABLE:
+            from pdf2image import convert_from_bytes
+            images = convert_from_bytes(uploaded_file.getvalue())
+            return "\n".join([pytesseract.image_to_string(img) for img in images])
         else:
-            return "❌ Unsupported file format."
-    except Exception as e:
-        return f"❌ File extraction error: {str(e)}"
+            return "⚠️ OCR unavailable: Tesseract not installed."
+
+    # DOCX
+    if filename.endswith(".docx"):
+        doc = docx.Document(uploaded_file)
+        return "\n".join([para.text for para in doc.paragraphs])
+
+    # ODT
+    if filename.endswith(".odt"):
+        text = ""
+        odt_doc = load_odt(uploaded_file)
+        for elem in odt_doc.getElementsByType((P, H)):
+            text += (elem.firstChild.data if elem.firstChild else "") + "\n"
+        return text
+
+    # Images
+    if file_type.startswith("image/") or filename.endswith((".png", ".jpg", ".jpeg")):
+        if TESSERACT_AVAILABLE:
+            return pytesseract.image_to_string(Image.open(uploaded_file))
+        else:
+            return "⚠️ OCR unavailable: Tesseract not installed."
+
+    # ZIP
+    if filename.endswith(".zip"):
+        try:
+            with zipfile.ZipFile(io.BytesIO(uploaded_file.getvalue())) as zf:
+                texts = []
+                for name in zf.namelist():
+                    if name.lower().endswith(".txt"):
+                        with zf.open(name) as f:
+                            texts.append(f.read().decode("utf-8", "ignore"))
+                return "\n\n".join(texts) if texts else "No readable files found in ZIP."
+        except Exception:
+            return "Could not read ZIP file."
+
+    return "Unsupported file type."
 
 # ---------------------------
-# Highlight glossary terms
+# Glossary highlighting
 # ---------------------------
-def highlight_medical_terms(text: str):
-    highlighted = text
-    for term in GLOSSARY.keys():
-        pattern = re.compile(rf"\b({re.escape(term)})\b", re.IGNORECASE)
-        highlighted = pattern.sub(r"**\1**", highlighted)
-    return highlighted
+def highlight_medical_terms(text):
+    glossary_file = os.path.join(os.path.dirname(__file__), "glossary.json")
+    with open(glossary_file, "r") as f:
+        glossary = json.load(f)
+
+    for term in glossary.keys():
+        pattern = re.compile(fr"\b({term})\b", re.IGNORECASE)
+        text = pattern.sub(r"<mark>\1</mark>", text)
+    return text
+
+def explain_glossary_terms(summary):
+    glossary_file = os.path.join(os.path.dirname(__file__), "glossary.json")
+    with open(glossary_file, "r") as f:
+        glossary = json.load(f)
+    explanations = [
+        f"**{t.capitalize()}**: {d}"
+        for t, d in glossary.items()
+        if re.search(fr"\b{t}\b", summary, re.IGNORECASE)
+    ]
+    return "### 🧾 Glossary\n" + "\n".join(explanations) if explanations else ""
 
 # ---------------------------
-# Explain glossary terms
+# Save as PDF
 # ---------------------------
-def explain_glossary_terms(text: str):
-    found = {}
-    for term, definition in GLOSSARY.items():
-        if re.search(rf"\b{re.escape(term)}\b", text, re.IGNORECASE):
-            found[term] = definition
-    return found
+def save_summary_as_pdf(summary, path="/mnt/data/summary.pdf"):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    for line in summary.split("\n"):
+        pdf.multi_cell(0, 10, line)
+    pdf.output(path)
+    return path
+
+# ---------------------------
+# Text-to-speech
+# ---------------------------
+def speak_summary(text):
+    engine = pyttsx3.init()
+    engine.say(text)
+    engine.runAndWait()
+
