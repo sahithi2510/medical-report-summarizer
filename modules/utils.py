@@ -130,3 +130,14 @@ def speak_summary(text):
     engine = pyttsx3.init()
     engine.say(text)
     engine.runAndWait()
+
+# ----------------- Safe OCR wrapper for external use -----------------
+def ocr_image(image_path):
+    """Perform OCR on an image if Tesseract is available."""
+    if not TESSERACT_AVAILABLE:
+        return "OCR unavailable: Tesseract not installed."
+    try:
+        text = pytesseract.image_to_string(Image.open(image_path))
+        return text
+    except Exception as e:
+        return f"OCR failed: {e}"
