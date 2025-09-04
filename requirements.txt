@@ -1,11 +1,6 @@
 streamlit==1.30.0
-google-cloud-vision   # no version pin
-
-PyPDF2
-pdf2image
-Pillow
-python-docx
-odfpy
-fpdf
-striprtf
-requests
+pytesseract==0.3.10
+pdf2image==1.16.3
+Pillow==10.0.0
+PyPDF2==2.12.1
+fpdf==1.7.2
