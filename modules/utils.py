@@ -1,9 +1,9 @@
 import os
-import pytesseract
 import re
 import json
 import zipfile
 import io
+import requests
 
 from pdf2image import convert_from_bytes
 from PIL import Image
@@ -15,14 +15,22 @@ import pypandoc
 import pyttsx3
 from fpdf import FPDF
 
-# ----------------- Check Tesseract availability -----------------
-try:
-    TESSERACT_VERSION = pytesseract.get_tesseract_version()
-    print("Tesseract version detected:", TESSERACT_VERSION)
-    TESSERACT_AVAILABLE = True
-except pytesseract.pytesseract.TesseractNotFoundError:
-    print("Tesseract not found! OCR will be unavailable.")
-    TESSERACT_AVAILABLE = False
+# ----------------- Cloud OCR setup -----------------
+OCR_SPACE_API_KEY = "K84635153888957"  # Replace with your key
+OCR_SPACE_URL = "https://api.ocr.space/parse/image"
+
+def ocr_image_cloud(file_bytes):
+    """Perform OCR using OCR.space cloud API."""
+    files = {"file": file_bytes}
+    payload = {"apikey": OCR_SPACE_API_KEY, "language": "eng"}
+    try:
+        response = requests.post(OCR_SPACE_URL, files=files, data=payload)
+        result = response.json()
+        if result.get("IsErroredOnProcessing"):
+            return "OCR failed: " + result.get("ErrorMessage", ["Unknown error"])[0]
+        return result["ParsedResults"][0]["ParsedText"]
+    except Exception as e:
+        return f"OCR request failed: {e}"
 
 # ----------------- Text Extraction -----------------
 def extract_text_from_file(uploaded_file):
@@ -43,11 +51,17 @@ def extract_text_from_file(uploaded_file):
                 return text
         except Exception:
             pass
-        # fallback OCR for scanned PDFs
-        if TESSERACT_AVAILABLE:
+        # fallback: convert PDF pages to images and OCR via cloud
+        try:
             images = convert_from_bytes(uploaded_file.getvalue())
-            return "\n".join([pytesseract.image_to_string(img) for img in images])
-        return "OCR unavailable: Tesseract not installed."
+            text_pages = []
+            for img in images:
+                with io.BytesIO() as buf:
+                    img.save(buf, format="PNG")
+                    text_pages.append(ocr_image_cloud(buf.getvalue()))
+            return "\n".join(text_pages)
+        except Exception:
+            return "OCR failed for scanned PDF."
 
     # DOCX
     if filename.endswith(".docx"):
@@ -64,9 +78,10 @@ def extract_text_from_file(uploaded_file):
 
     # Images
     if file_type.startswith("image/") or filename.endswith((".png", ".jpg", ".jpeg")):
-        if TESSERACT_AVAILABLE:
-            return pytesseract.image_to_string(Image.open(uploaded_file))
-        return "OCR unavailable: Tesseract not installed."
+        try:
+            return ocr_image_cloud(uploaded_file.getvalue())
+        except Exception:
+            return "OCR failed for image."
 
     # RTF (via Pandoc)
     if filename.endswith(".rtf"):
@@ -130,14 +145,3 @@ def speak_summary(text):
     engine = pyttsx3.init()
     engine.say(text)
     engine.runAndWait()
-
-# ----------------- Safe OCR wrapper for external use -----------------
-def ocr_image(image_path):
-    """Perform OCR on an image if Tesseract is available."""
-    if not TESSERACT_AVAILABLE:
-        return "OCR unavailable: Tesseract not installed."
-    try:
-        text = pytesseract.image_to_string(Image.open(image_path))
-        return text
-    except Exception as e:
-        return f"OCR failed: {e}"
