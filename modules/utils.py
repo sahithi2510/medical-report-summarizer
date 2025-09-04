@@ -27,18 +27,17 @@ def ocr_image_cloud(file_input):
       - bytes
       - file-like object (with .read())
     """
-    if hasattr(file_input, "read"):  # file-like object
+    # Ensure we always have bytes
+    if hasattr(file_input, "read"):
+        file_input.seek(0)
         file_bytes = file_input.read()
     elif isinstance(file_input, bytes):
         file_bytes = file_input
     else:
-        raise ValueError(
-            "ocr_image_cloud expects bytes or file-like object, got: " + str(type(file_input))
-        )
+        raise ValueError(f"OCR input must be bytes or file-like object, got {type(file_input)}")
 
     files = {"file": ("file", file_bytes)}
     payload = {"apikey": OCR_SPACE_API_KEY, "language": "eng"}
-
     try:
         response = requests.post(OCR_SPACE_URL, files=files, data=payload)
         result = response.json()
@@ -47,6 +46,11 @@ def ocr_image_cloud(file_input):
         return result["ParsedResults"][0]["ParsedText"]
     except Exception as e:
         return f"OCR request failed: {e}"
+
+def get_bytes(uploaded_file):
+    """Return bytes from a Streamlit UploadedFile safely."""
+    uploaded_file.seek(0)
+    return uploaded_file.getvalue()
 
 # ----------------- Text Extraction -----------------
 def extract_text_from_file(uploaded_file):
@@ -67,9 +71,8 @@ def extract_text_from_file(uploaded_file):
                 return text
         except Exception:
             pass
-        # fallback: convert PDF pages to images and OCR via cloud
         try:
-            images = convert_from_bytes(uploaded_file.getvalue())
+            images = convert_from_bytes(get_bytes(uploaded_file))
             text_pages = []
             for img in images:
                 with io.BytesIO() as buf:
@@ -105,7 +108,7 @@ def extract_text_from_file(uploaded_file):
     # ZIP
     if filename.endswith(".zip"):
         try:
-            with zipfile.ZipFile(io.BytesIO(uploaded_file.getvalue())) as zf:
+            with zipfile.ZipFile(io.BytesIO(get_bytes(uploaded_file))) as zf:
                 texts = []
                 for name in zf.namelist():
                     if name.lower().endswith('.txt'):
@@ -159,4 +162,5 @@ def speak_summary(text):
     engine = pyttsx3.init()
     engine.say(text)
     engine.runAndWait()
+
 
