@@ -7,18 +7,13 @@ from pdf2image import convert_from_bytes
 import docx
 from odf.opendocument import load as load_odt
 from odf.text import P, H
-import pypandoc
-import pyttsx3
 from fpdf import FPDF
 import streamlit as st
 from google.cloud import vision
+from striprtf.striprtf import rtf_to_text
 
 # ----------------- Setup Google Vision client -----------------
 def setup_vision_client():
-    """
-    Save secret JSON to temp file and create a Vision client.
-    Must be called once before OCR functions.
-    """
     creds_json = st.secrets["google"]["GOOGLE_APPLICATION_CREDENTIALS_JSON"]
     key_path = "/tmp/key.json"
     with open(key_path, "w") as f:
@@ -30,7 +25,6 @@ vision_client = setup_vision_client()
 
 # ----------------- OCR -----------------
 def ocr_image_cloud(file_bytes):
-    """Perform OCR using Google Cloud Vision API."""
     image = vision.Image(content=file_bytes)
     response = vision_client.text_detection(image=image)
     texts = response.text_annotations
@@ -39,7 +33,6 @@ def ocr_image_cloud(file_bytes):
     return ""
 
 def get_bytes(uploaded_file):
-    """Return bytes from Streamlit UploadedFile safely."""
     uploaded_file.seek(0)
     return uploaded_file.getvalue()
 
@@ -60,7 +53,6 @@ def extract_text_from_file(uploaded_file):
                 return text
         except Exception:
             pass
-        # fallback OCR for scanned PDF
         images = convert_from_bytes(get_bytes(uploaded_file))
         text_pages = []
         for img in images:
@@ -90,7 +82,7 @@ def extract_text_from_file(uploaded_file):
     # RTF
     if filename.endswith(".rtf"):
         raw = uploaded_file.read().decode("utf-8", errors="ignore")
-        return pypandoc.convert_text(raw, 'plain', format='rtf')
+        return rtf_to_text(raw)
 
     return f"Unsupported or unrecognized file type: {filename}"
 
@@ -126,9 +118,3 @@ def save_summary_as_pdf(summary):
     path = "/mnt/data/summary.pdf"
     pdf.output(path)
     return path
-
-# ----------------- TTS -----------------
-def speak_summary(text):
-    engine = pyttsx3.init()
-    engine.say(text)
-    engine.runAndWait()
