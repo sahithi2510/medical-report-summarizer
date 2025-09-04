@@ -1,5 +1,5 @@
 streamlit==1.30.0
-PyPDF2==3.1.0
+PyPDF2==2.12.1          # compatible with Streamlit Cloud
 pdf2image==1.16.3
 Pillow==10.0.0
 python-docx==0.8.12
@@ -8,3 +8,4 @@ fpdf==1.7.2
 google-cloud-vision==3.2.2
 striprtf==0.3.0
 requests==2.31.0
+
