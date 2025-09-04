@@ -1,101 +1,105 @@
-import streamlit as st
-from google.cloud import vision
-from google.oauth2 import service_account
-from PyPDF2 import PdfReader
-from pdf2image import convert_from_bytes
-from PIL import Image
-import io
+import os
 import json
 import re
-from fpdf import FPDF
-
-
-# ---------------------------
-# Google Vision Setup
-# ---------------------------
-@st.cache_resource
-def setup_vision_client():
-    credentials = service_account.Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"]
-    )
-    return vision.ImageAnnotatorClient(credentials=credentials)
-
-vision_client = setup_vision_client()
+import tempfile
+from PIL import Image
+import pytesseract
+import pyttsx3
+from PyPDF2 import PdfReader
 
 # ---------------------------
-# Text Extraction Functions
+# Load glossary terms
 # ---------------------------
-def extract_text_from_pdf(uploaded_file):
-    pdf = PdfReader(uploaded_file)
-    text = ""
-    for page in pdf.pages:
-        text += page.extract_text() or ""
-    # If no text, fallback to OCR
-    if not text.strip():
-        images = convert_from_bytes(uploaded_file.read())
-        text = "\n".join([extract_text_from_image(img) for img in images])
-    return text
-
-def extract_text_from_image(image):
-    img_byte_arr = io.BytesIO()
-    image.save(img_byte_arr, format='PNG')
-    img_byte_arr = img_byte_arr.getvalue()
-
-    response = vision_client.document_text_detection({'content': img_byte_arr})
-    texts = response.text_annotations
-    return texts[0].description if texts else ""
-
-def extract_from_file(uploaded_file):
-    """Detect file type and extract text from PDF or image."""
-    fname = uploaded_file.name.lower()
-    if fname.endswith(".pdf"):
-        return extract_text_from_pdf(uploaded_file)
-    elif fname.endswith((".png", ".jpg", ".jpeg")):
-        image = Image.open(uploaded_file)
-        return extract_text_from_image(image)
-    else:
-        return "Unsupported file type."
+GLOSSARY_PATH = os.path.join(os.path.dirname(__file__), "glossary.json")
+with open(GLOSSARY_PATH, "r", encoding="utf-8") as file:
+    GLOSSARY = json.load(file)
 
 # ---------------------------
-# Glossary Highlighting
+# Check Tesseract availability
 # ---------------------------
-def highlight_medical_terms(text):
-    glossary_file = "modules/glossary.json"
-    with open(glossary_file, "r") as f:
-        glossary = json.load(f)
-    for term in glossary.keys():
-        pattern = re.compile(fr"\b({term})\b", re.IGNORECASE)
-        text = pattern.sub(r"<mark>\1</mark>", text)
-    return text
+def is_tesseract_available():
+    try:
+        pytesseract.get_tesseract_version()
+        return True
+    except Exception:
+        return False
 
-def explain_glossary_terms(summary):
-    glossary_file = "modules/glossary.json"
-    with open(glossary_file, "r") as f:
-        glossary = json.load(f)
-    explanations = [
-        f"**{t.capitalize()}**: {d}"
-        for t, d in glossary.items()
-        if re.search(fr"\b{t}\b", summary, re.IGNORECASE)
-    ]
-    return "### 🧾 Glossary\n" + "\n".join(explanations) if explanations else ""
-
-# ---------------------------
-# Export PDF
-# ---------------------------
-def save_summary_as_pdf(summary):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    for line in summary.split("\n"):
-        pdf.multi_cell(0, 10, line)
-    path = "/mnt/data/summary.pdf"
-    pdf.output(path)
-    return path
+TESSERACT_AVAILABLE = is_tesseract_available()
 
 # ---------------------------
 # Text-to-Speech
 # ---------------------------
-def speak_summary(text):
-    engine = pyttsx3.init()
-    engine.say(text)
-    engine.runAndWait()
+def speak_text(text: str):
+    try:
+        engine = pyttsx3.init()
+        engine.say(text)
+        engine.runAndWait()
+    except Exception:
+        return "❌ TTS failed. Is pyttsx3 supported in this environment?"
+
+# ---------------------------
+# OCR: extract text from image
+# ---------------------------
+def extract_text_from_image(image):
+    if not TESSERACT_AVAILABLE:
+        return "❌ Tesseract OCR is not installed."
+    try:
+        return pytesseract.image_to_string(image)
+    except Exception as e:
+        return f"❌ OCR error: {str(e)}"
+
+# ---------------------------
+# OCR: extract text from PDF
+# ---------------------------
+def extract_text_from_pdf(pdf_file):
+    if not TESSERACT_AVAILABLE:
+        return "❌ Tesseract OCR is not installed."
+
+    text = ""
+    try:
+        with tempfile.TemporaryDirectory() as _:
+            reader = PdfReader(pdf_file)
+            for page in reader.pages:
+                try:
+                    text += page.extract_text() or ""
+                except Exception:
+                    continue
+    except Exception as e:
+        return f"❌ PDF reading error: {str(e)}"
+
+    return text.strip() if text else "❌ No text found in the PDF."
+
+# ---------------------------
+# General extractor
+# ---------------------------
+def extract_text_from_file(uploaded_file):
+    try:
+        if uploaded_file.type.startswith("image/"):
+            image = Image.open(uploaded_file)
+            return extract_text_from_image(image)
+        elif uploaded_file.type == "application/pdf":
+            return extract_text_from_pdf(uploaded_file)
+        else:
+            return "❌ Unsupported file format."
+    except Exception as e:
+        return f"❌ File extraction error: {str(e)}"
+
+# ---------------------------
+# Highlight glossary terms
+# ---------------------------
+def highlight_medical_terms(text: str):
+    highlighted = text
+    for term in GLOSSARY.keys():
+        pattern = re.compile(rf"\b({re.escape(term)})\b", re.IGNORECASE)
+        highlighted = pattern.sub(r"**\1**", highlighted)
+    return highlighted
+
+# ---------------------------
+# Explain glossary terms
+# ---------------------------
+def explain_glossary_terms(text: str):
+    found = {}
+    for term, definition in GLOSSARY.items():
+        if re.search(rf"\b{re.escape(term)}\b", text, re.IGNORECASE):
+            found[term] = definition
+    return found
