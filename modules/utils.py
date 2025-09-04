@@ -1,120 +1,86 @@
+import io
 import os
 import re
-import json
-import io
-import PyPDF2
-from pdf2image import convert_from_bytes
-import docx
-from odf.opendocument import load as load_odt
-from odf.text import P, H
-from fpdf import FPDF
+import tempfile
 import streamlit as st
 from google.cloud import vision
-from striprtf.striprtf import rtf_to_text
+from google.oauth2 import service_account
+from PyPDF2 import PdfReader
+from pdf2image import convert_from_bytes
+from PIL import Image
+import pyttsx3
 
-# ----------------- Setup Google Vision client -----------------
+# -------------------------------
+# Setup Google Vision client
+# -------------------------------
+@st.cache_resource
 def setup_vision_client():
-    creds_json = st.secrets["google"]["GOOGLE_APPLICATION_CREDENTIALS_JSON"]
-    key_path = "/tmp/key.json"
-    with open(key_path, "w") as f:
-        f.write(creds_json)
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = key_path
-    return vision.ImageAnnotatorClient()
+    """Initialize Google Vision API client using Streamlit Secrets."""
+    creds = service_account.Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"]
+    )
+    return vision.ImageAnnotatorClient(credentials=creds)
 
 vision_client = setup_vision_client()
 
-# ----------------- OCR -----------------
-def ocr_image_cloud(file_bytes):
-    image = vision.Image(content=file_bytes)
-    response = vision_client.text_detection(image=image)
-    texts = response.text_annotations
-    if texts:
-        return texts[0].description
-    return ""
 
-def get_bytes(uploaded_file):
-    uploaded_file.seek(0)
-    return uploaded_file.getvalue()
+# -------------------------------
+# OCR FUNCTIONS
+# -------------------------------
+def extract_text_from_image(image: Image.Image) -> str:
+    """Extract text from a PIL image using Google Vision API."""
+    with io.BytesIO() as output:
+        image.save(output, format="PNG")
+        content = output.getvalue()
 
-# ----------------- Text Extraction -----------------
-def extract_text_from_file(uploaded_file):
-    filename = uploaded_file.name.lower()
+    image_obj = vision.Image(content=content)
+    response = vision_client.text_detection(image=image_obj)
 
-    # TXT
-    if filename.endswith(".txt"):
-        return uploaded_file.read().decode("utf-8", errors="ignore")
+    if response.error.message:
+        raise RuntimeError(f"OCR error: {response.error.message}")
 
-    # PDF
-    if filename.endswith(".pdf"):
-        try:
-            reader = PyPDF2.PdfReader(uploaded_file)
-            text = "".join([page.extract_text() or "" for page in reader.pages])
-            if text.strip():
-                return text
-        except Exception:
-            pass
-        images = convert_from_bytes(get_bytes(uploaded_file))
-        text_pages = []
-        for img in images:
-            with io.BytesIO() as buf:
-                img.save(buf, format="PNG")
-                buf.seek(0)
-                text_pages.append(ocr_image_cloud(buf.getvalue()))
-        return "\n".join(text_pages)
+    return response.full_text_annotation.text
 
-    # DOCX
-    if filename.endswith(".docx"):
-        doc = docx.Document(uploaded_file)
-        return "\n".join([para.text for para in doc.paragraphs])
 
-    # ODT
-    if filename.endswith(".odt"):
-        text = ""
-        odt_doc = load_odt(uploaded_file)
-        for elem in odt_doc.getElementsByType((P, H)):
-            text += (elem.firstChild.data if elem.firstChild else "") + "\n"
-        return text
+def extract_text_from_pdf(pdf_bytes: bytes) -> str:
+    """Convert PDF pages to images and extract text via Vision API."""
+    images = convert_from_bytes(pdf_bytes)
+    text = ""
+    for img in images:
+        text += extract_text_from_image(img) + "\n"
+    return text.strip()
 
-    # Images
-    if filename.endswith((".png", ".jpg", ".jpeg")):
-        return ocr_image_cloud(get_bytes(uploaded_file))
 
-    # RTF
-    if filename.endswith(".rtf"):
-        raw = uploaded_file.read().decode("utf-8", errors="ignore")
-        return rtf_to_text(raw)
+def extract_text_from_file(uploaded_file) -> str:
+    """Handle file upload (PDF, image, or text)."""
+    file_type = uploaded_file.type
 
-    return f"Unsupported or unrecognized file type: {filename}"
+    if file_type == "application/pdf":
+        return extract_text_from_pdf(uploaded_file.read())
+    elif file_type.startswith("image/"):
+        image = Image.open(uploaded_file)
+        return extract_text_from_image(image)
+    elif file_type.startswith("text/"):
+        return uploaded_file.read().decode("utf-8")
+    else:
+        raise ValueError(f"Unsupported file type: {file_type}")
 
-# ----------------- Highlight Medical Terms -----------------
-def highlight_medical_terms(text):
-    glossary_file = os.path.join(os.path.dirname(__file__), "glossary.json")
-    with open(glossary_file, "r") as f:
-        glossary = json.load(f)
-    for term in glossary.keys():
-        pattern = re.compile(fr"\b({term})\b", re.IGNORECASE)
-        text = pattern.sub(r"<mark>\1</mark>", text)
+
+# -------------------------------
+# GLOSSARY HIGHLIGHTING
+# -------------------------------
+def highlight_medical_terms(text: str, glossary: dict) -> str:
+    """Highlight glossary terms inside text with Markdown bold formatting."""
+    for term, definition in glossary.items():
+        pattern = re.compile(rf"\b({re.escape(term)})\b", flags=re.IGNORECASE)
+        text = pattern.sub(r"**\1**", text)
     return text
 
-# ----------------- Glossary -----------------
-def explain_glossary_terms(summary):
-    glossary_file = os.path.join(os.path.dirname(__file__), "glossary.json")
-    with open(glossary_file, "r") as f:
-        glossary = json.load(f)
-    explanations = [
-        f"**{t.capitalize()}**: {d}"
-        for t, d in glossary.items()
-        if re.search(fr"\b{t}\b", summary, re.IGNORECASE)
-    ]
-    return "### 🧾 Glossary\n" + "\n".join(explanations) if explanations else ""
 
-# ----------------- PDF export -----------------
-def save_summary_as_pdf(summary):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    for line in summary.split("\n"):
-        pdf.multi_cell(0, 10, line)
-    path = "/mnt/data/summary.pdf"
-    pdf.output(path)
-    return path
+# -------------------------------
+# TEXT TO SPEECH
+# -------------------------------
+def text_to_speech(text: str) -> str:
+    """Convert text to speech and return path to temporary audio file."""
+    engine = pyttsx3.init()
+    tmp_file = tempfile.NamedTemporaryFile(delete=False,
