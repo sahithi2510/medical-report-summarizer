@@ -1,61 +1,53 @@
 import streamlit as st
-
-# ---------------------------
-# Page configuration (must be first)
-# ---------------------------
-st.set_page_config(
-    page_title="Medical Report Summarizer",
-    page_icon="🩺",
-    layout="wide"
-)
-
-# ---------------------------
-# Imports
-# ---------------------------
 from modules.utils import (
-    extract_from_file,
+    extract_text_from_file,
     highlight_medical_terms,
     explain_glossary_terms,
-    save_summary_as_pdf,
-    speak_summary
+    speak_text,
+    TESSERACT_AVAILABLE
 )
 
 # ---------------------------
-# App UI
+# Page setup
 # ---------------------------
-st.title("🩺 Medical Report Summarizer")
+st.set_page_config(page_title="Medical Report Summarizer", layout="wide")
+st.title("📄 Medical Report Summarizer")
 
+# ---------------------------
+# File uploader
+# ---------------------------
 uploaded_file = st.file_uploader(
-    "Upload a PDF or image file to extract and summarize text", 
+    "Upload medical report (PDF or Image)", 
     type=["pdf", "png", "jpg", "jpeg"]
 )
 
-if uploaded_file:
-    with st.spinner("Extracting text..."):
-        content = extract_from_file(uploaded_file)
+# ---------------------------
+# Warning if Tesseract missing
+# ---------------------------
+if not TESSERACT_AVAILABLE:
+    st.error("⚠️ Tesseract OCR is not installed. Please check `.streamlit/packages.txt`.")
 
-    st.subheader("Extracted Text")
-    st.write(content)
+# ---------------------------
+# Processing uploaded file
+# ---------------------------
+if uploaded_file and TESSERACT_AVAILABLE:
+    with st.spinner("🔍 Extracting text..."):
+        extracted_text = extract_text_from_file(uploaded_file)
 
-    st.subheader("Highlighted Medical Terms")
-    highlighted_text = highlight_medical_terms(content)
-    st.markdown(highlighted_text, unsafe_allow_html=True)
+    st.subheader("📑 Extracted Text")
+    st.write(extracted_text)
 
-    st.subheader("Glossary")
-    glossary_text = explain_glossary_terms(content)
-    st.markdown(glossary_text, unsafe_allow_html=True)
+    st.subheader("🩺 Highlighted Medical Terms")
+    highlighted_text = highlight_medical_terms(extracted_text)
+    st.markdown(highlighted_text)
 
-    st.subheader("Export Summary as PDF")
-    pdf_path = save_summary_as_pdf(content)
-    with open(pdf_path, "rb") as f:
-        st.download_button(
-            label="Download PDF",
-            data=f,
-            file_name="summary.pdf",
-            mime="application/pdf"
-        )
+    st.subheader("📘 Glossary Definitions")
+    definitions = explain_glossary_terms(extracted_text)
+    if definitions:
+        for term, definition in definitions.items():
+            st.markdown(f"**{term}**: {definition}")
+    else:
+        st.info("No glossary terms found.")
 
-    st.subheader("Text-to-Speech (Disabled on Streamlit Cloud)")
-    tts_text = speak_summary(content)
-    st.info(tts_text)
-
+    if st.button("🔊 Read Out Summary"):
+        speak_text(extracted_text)
