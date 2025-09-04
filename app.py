@@ -3,51 +3,31 @@ from modules.utils import (
     extract_text_from_file,
     highlight_medical_terms,
     explain_glossary_terms,
-    speak_text,
-    TESSERACT_AVAILABLE
+    save_summary_as_pdf,
+    speak_summary,
 )
 
-# ---------------------------
-# Page setup
-# ---------------------------
 st.set_page_config(page_title="Medical Report Summarizer", layout="wide")
-st.title("📄 Medical Report Summarizer")
 
-# ---------------------------
-# File uploader
-# ---------------------------
-uploaded_file = st.file_uploader(
-    "Upload medical report (PDF or Image)", 
-    type=["pdf", "png", "jpg", "jpeg"]
-)
+st.title("🩺 Medical Report Summarizer")
+uploaded_file = st.file_uploader("Upload a medical report", type=["pdf", "docx", "odt", "txt", "zip", "png", "jpg", "jpeg"])
 
-# ---------------------------
-# Warning if Tesseract missing
-# ---------------------------
-if not TESSERACT_AVAILABLE:
-    st.error("⚠️ Tesseract OCR is not installed. Please check `.streamlit/packages.txt`.")
+if uploaded_file:
+    content = extract_text_from_file(uploaded_file)
+    st.subheader("Original Text")
+    st.text_area("", content, height=300)
 
-# ---------------------------
-# Processing uploaded file
-# ---------------------------
-if uploaded_file and TESSERACT_AVAILABLE:
-    with st.spinner("🔍 Extracting text..."):
-        extracted_text = extract_text_from_file(uploaded_file)
+    highlighted = highlight_medical_terms(content)
+    st.subheader("Highlighted Medical Terms")
+    st.markdown(highlighted, unsafe_allow_html=True)
 
-    st.subheader("📑 Extracted Text")
-    st.write(extracted_text)
+    glossary = explain_glossary_terms(content)
+    if glossary:
+        st.subheader("Glossary")
+        st.markdown(glossary, unsafe_allow_html=True)
 
-    st.subheader("🩺 Highlighted Medical Terms")
-    highlighted_text = highlight_medical_terms(extracted_text)
-    st.markdown(highlighted_text)
+    pdf_path = save_summary_as_pdf(content)
+    st.download_button("📄 Download Summary PDF", pdf_path)
 
-    st.subheader("📘 Glossary Definitions")
-    definitions = explain_glossary_terms(extracted_text)
-    if definitions:
-        for term, definition in definitions.items():
-            st.markdown(f"**{term}**: {definition}")
-    else:
-        st.info("No glossary terms found.")
-
-    if st.button("🔊 Read Out Summary"):
-        speak_text(extracted_text)
+    if st.button("🔊 Listen to Summary"):
+        speak_summary(content)
