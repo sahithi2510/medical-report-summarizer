@@ -40,3 +40,4 @@ if uploaded_file:
     if st.button("🔊 Listen to Summary"):
         st.info("Playing audio...")
         speak_summary(content)
+
