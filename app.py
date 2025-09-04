@@ -32,7 +32,7 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file:
     with st.spinner("Extracting text..."):
-        content = extract_text_from_file(uploaded_file)
+        content = extract_from_file(uploaded_file)
 
     st.subheader("Extracted Text")
     st.write(content)
