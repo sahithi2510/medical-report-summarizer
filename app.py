@@ -1,61 +1,39 @@
-import pytesseract
-try:
-    print("Tesseract version:", pytesseract.get_tesseract_version())
-except pytesseract.pytesseract.TesseractNotFoundError:
-    print("Tesseract not found!")
-
 import streamlit as st
-from modules.summarizer import generate_summary
-from modules.utils import (
-    extract_text_from_file,
-    highlight_medical_terms,
-    save_summary_as_pdf,
-    speak_summary,
-    explain_glossary_terms,
-)
-import os
-from dotenv import load_dotenv
+from modules.utils import extract_text_from_file, highlight_medical_terms, explain_glossary_terms, save_summary_as_pdf, speak_summary
 
-load_dotenv()
-st.set_page_config(page_title="🩺 Medical Report Summarizer", layout="wide")
-st.title("🩺 Medical Report Summarizer")
+st.set_page_config(page_title="Medical Report Summarizer", layout="wide")
 
-with st.sidebar.expander("⚙️ Settings"):
-    model_choice = st.selectbox(
-        "Choose summarization model:",
-        ("sshleifer/distilbart-cnn-12-6", "facebook/bart-large-cnn"),
-        index=0
-    )
-    if st.button("Apply model choice"):
-        os.environ["SUMMARIZER_MODEL"] = model_choice
-        st.info("Restart the app to apply the model change.")
+st.title("🏥 Medical Report Summarizer")
+st.markdown("Upload medical reports (PDF, DOCX, TXT, images, ZIP) to extract and summarize key information.")
 
-uploaded_file = st.file_uploader(
-    "Upload Medical Report (PDF, TXT, DOCX, ODT, RTF, JPG, PNG, ZIP)",
-    type=["pdf", "txt", "docx", "odt", "rtf", "jpg", "jpeg", "png", "zip"]
-)
+# ----------------- File Upload -----------------
+uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx", "odt", "rtf", "txt", "png", "jpg", "jpeg", "zip"])
 
 if uploaded_file:
-    with st.expander("📄 Raw Extracted Text"):
+    with st.spinner("Extracting text..."):
         content = extract_text_from_file(uploaded_file)
-        st.text_area("Extracted Text", content, height=300)
+    
+    st.subheader("📄 Extracted Text")
+    st.text_area("Extracted content", content, height=250)
 
-    if st.button("Summarize Report"):
-        with st.spinner("Generating summary..."):
-            summary = generate_summary(content)
-            highlighted = highlight_medical_terms(summary)
+    # Highlight medical terms
+    highlighted_text = highlight_medical_terms(content)
+    st.subheader("✨ Highlighted Medical Terms")
+    st.markdown(highlighted_text, unsafe_allow_html=True)
 
-            st.markdown("### 🧠 Layman-Friendly Summary")
-            st.markdown(highlighted, unsafe_allow_html=True)
+    # Glossary explanations
+    glossary = explain_glossary_terms(content)
+    if glossary:
+        st.subheader("🧾 Glossary")
+        st.markdown(glossary, unsafe_allow_html=True)
 
-            glossary = explain_glossary_terms(summary)
-            if glossary:
-                st.markdown(glossary)
+    # ----------------- Export as PDF -----------------
+    if st.button("💾 Download Summary as PDF"):
+        pdf_path = save_summary_as_pdf(content)
+        with open(pdf_path, "rb") as f:
+            st.download_button("Download PDF", f, file_name="summary.pdf")
 
-            st.download_button("📥 Download TXT", summary, file_name="summary.txt")
-            pdf_path = save_summary_as_pdf(summary)
-            with open(pdf_path, "rb") as f:
-                st.download_button("📥 Download PDF", f, file_name="summary.pdf")
-
-            if st.checkbox("🔊 Listen to Summary"):
-                speak_summary(summary)
+    # ----------------- Text-to-Speech -----------------
+    if st.button("🔊 Listen to Summary"):
+        st.info("Playing audio...")
+        speak_summary(content)
