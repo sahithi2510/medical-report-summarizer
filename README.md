@@ -23,6 +23,8 @@ An offline-first **Streamlit app** that:
 medical-report-summarizer/
 │── app.py
 │── modules/utils.py
+│── modules/summarizer.py
+│── modules/glossary.json
 │── requirements.txt
 │── packages.txt
 │── runtime.txt
