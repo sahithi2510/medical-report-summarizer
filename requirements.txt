@@ -1,9 +1,6 @@
 streamlit==1.30.0
-python-docx
-odfpy
-fpdf
 pytesseract
 pdf2image
 Pillow
-pyttsx3
-
+python-docx
+fpdf
