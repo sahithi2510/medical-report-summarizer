@@ -122,7 +122,8 @@ Works everywhere: local, cloud, or any container platform.
 - **Fixing OCR Issues**: Ensure Tesseract path is correctly set in `utils.py`.  
 - **Improving TTS**: Replace pyttsx3 with gTTS for web compatibility.  
 - **Enhancing Summarization**: Use NLP models for better summaries.  
-- **PDF/TXT Generation**: Handle Unicode characters properly to avoid encoding errors.  
+- **PDF/TXT Generation**: Handle Unicode characters properly to avoid encoding errors.
+- **Glossary Improvement**: Add more medical terms and their meaning to the glossary.json file
 
 ---
 
