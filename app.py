@@ -4,30 +4,39 @@ from modules.utils import (
     highlight_medical_terms,
     explain_glossary_terms,
     save_summary_as_pdf,
-    speak_summary,
+    save_summary_as_txt,
+    speak_summary
 )
 
 st.set_page_config(page_title="Medical Report Summarizer", layout="wide")
 
-st.title("🩺 Medical Report Summarizer")
-uploaded_file = st.file_uploader("Upload a medical report", type=["pdf", "docx", "odt", "txt", "zip", "png", "jpg", "jpeg"])
+st.title("📄 Medical Report Summarizer")
 
+uploaded_file = st.file_uploader("Upload your medical report", type=["txt","pdf","docx","odt","png","jpg","jpeg"])
 if uploaded_file:
     content = extract_text_from_file(uploaded_file)
-    st.subheader("Original Text")
-    st.text_area("", content, height=300)
+    st.subheader("Extracted Text")
+    st.write(content)
 
+    # Highlight terms
     highlighted = highlight_medical_terms(content)
-    st.subheader("Highlighted Medical Terms")
+    st.markdown("### Highlighted Terms")
     st.markdown(highlighted, unsafe_allow_html=True)
 
-    glossary = explain_glossary_terms(content)
-    if glossary:
-        st.subheader("Glossary")
-        st.markdown(glossary, unsafe_allow_html=True)
+    # Glossary
+    glossary_text = explain_glossary_terms(content)
+    if glossary_text:
+        st.markdown(glossary_text, unsafe_allow_html=True)
 
-    pdf_path = save_summary_as_pdf(content)
-    st.download_button("📄 Download Summary PDF", pdf_path)
+    # Download PDF
+    pdf_file = save_summary_as_pdf(content)
+    st.download_button("Download Summary as PDF", pdf_file, file_name="summary.pdf", mime="application/pdf")
 
-    if st.button("🔊 Listen to Summary"):
-        speak_summary(content)
+    # Download TXT
+    txt_file = save_summary_as_txt(content)
+    st.download_button("Download Summary as TXT", txt_file, file_name="summary.txt", mime="text/plain")
+
+    # Audio
+    audio_file = speak_summary(content)
+    st.audio(audio_file, format="audio/mp3")
+
