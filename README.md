@@ -101,6 +101,42 @@ Works everywhere: local, cloud, or any container platform.
 
 ---
 
+## Deployment Notes
+
+### Streamlit Cloud
+
+- **Tesseract OCR** and **pyttsx3** cannot be reliably installed due to system-level dependencies.  
+- For Streamlit, only gTTS audio works.  
+- Some PDF/TXT files may face encoding issues.
+
+### Alternative Platforms
+
+- **Google Colab**: Works if you install Tesseract using `!apt install tesseract-ocr`.  
+- **Local PC**: Fully functional. Recommended for demos.  
+- **Docker**: Can create a custom image with all dependencies.  
+
+---
+
+## Contribution Guide
+
+- **Fixing OCR Issues**: Ensure Tesseract path is correctly set in `utils.py`.  
+- **Improving TTS**: Replace pyttsx3 with gTTS for web compatibility.  
+- **Enhancing Summarization**: Use NLP models for better summaries.  
+- **PDF/TXT Generation**: Handle Unicode characters properly to avoid encoding errors.  
+
+---
+
+## Disclaimer
+
+This project is intended for educational purposes and interview demos. It is **not a certified medical tool**. Always consult professionals for medical interpretations.
+
+---
+
+## License
+
+MIT License
+
+
 
 ## 👨‍💻 Author
 Developed by **Dhanakudharam Sahithi** (B.Tech CSE).  
