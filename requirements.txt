@@ -1,7 +1,0 @@
-streamlit==1.30.0
-pytesseract
-Pillow
-python-docx
-odfpy
-fpdf
-pyttsx3
