@@ -1,4 +1,4 @@
-# 🩺 AI Medical Report Analyzer
+# 🩺 Medical Report Summarizer
 
 An AI-powered healthcare document analysis system that extracts text from medical reports, generates concise summaries, detects abnormal laboratory values, explains medical terminology, and provides downloadable reports.
 
