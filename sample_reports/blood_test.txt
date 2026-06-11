@@ -1,0 +1,14 @@
+PATIENT BLOOD TEST REPORT
+
+Patient Name: John Doe
+Age: 35
+
+Hemoglobin: 10.5
+WBC: 12500
+Platelets: 220000
+Blood Sugar: 95
+Creatinine: 1.0
+
+Clinical Notes:
+Patient reports fatigue and mild weakness.
+Further evaluation is recommended.

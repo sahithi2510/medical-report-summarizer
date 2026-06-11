@@ -1,0 +1,13 @@
+DIABETES SCREENING REPORT
+
+Patient Name: Jane Smith
+Age: 42
+
+Blood Sugar: 185
+HbA1c: 8.2
+Cholesterol: 240
+Creatinine: 1.4
+
+Clinical Notes:
+Elevated blood glucose levels observed.
+Patient should consult physician regarding diabetes management.
